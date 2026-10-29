@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Peak — Gestor de curso</title>
+  <meta name="description" content="Peak: gestiona materias, exámenes, trabajos y faltas de tu curso. Nota final calculada automáticamente y datos privados en tu dispositivo.">
+  <meta name="apple-mobile-web-app-title" content="Peak">
+  <meta name="theme-color" content="#0a0b12">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%236366f1'/%3E%3Cpath d='M22 38l28-12 28 12-28 12-28-12z' fill='white'/%3E%3Cpath d='M34 46v14c0 6 8 10 16 10s16-4 16-10V46' stroke='white' stroke-width='6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-mobile.css">
+  <script>
+    // Evita el parpadeo de tema: fija el tema antes de pintar.
+    try {
+      var savedTheme = localStorage.getItem('notas-faltas-theme');
+      var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.dataset.theme = savedTheme === 'light' || savedTheme === 'dark'
+        ? savedTheme
+        : (prefersLight ? 'light' : 'dark');
+    } catch (err) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+
+    <div class="mobile-sheet" id="mobileMoreSheet" role="dialog" aria-modal="true">
+    <div class="mobile-sheet-backdrop" data-close-mobile-sheet></div>
+    <div class="mobile-sheet-panel">
+      <div class="mobile-sheet-handle"></div>
+      <div class="mobile-sheet-head">
+        <h3>Más</h3>
+        <button class="icon-btn" type="button" data-close-mobile-sheet aria-label="Cerrar"><span class="ico-x"></span></button>
+      </div>
+      <div class="mobile-sheet-body">
+        <button class="mobile-sheet-row" type="button" id="mobileSyncBtn">
+          <span class="ico-cloud"></span>
+          <span>Cuenta y sincronización</span>
+        </button>
+        <button class="mobile-sheet-row" type="button" id="mobileExportBtn">
+          <span class="ico-download"></span>
+          <span>Exportar copia</span>
+        </button>
+        <button class="mobile-sheet-row" type="button" id="mobileImportBtn">
+          <span class="ico-upload"></span>
+          <span>Importar copia</span>
+        </button>
+        <button class="mobile-sheet-row" type="button" id="mobileThemeBtn">
+          <span class="ico-sun theme-ico-sun"></span>
+          <span class="ico-moon theme-ico-moon"></span>
+          <span>Cambiar tema</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./" aria-label="Peak, inicio">
+        <span class="brand-mark"><span class="ico-grad"></span></span>
+        <span class="brand-name">Peak</span>
+      </a>
+
+      <div class="top-actions">
+        <button class="btn btn-primary hide-sm" type="button" id="addSubjectBtn">
+          <span class="ico-plus"></span><span class="btn-label">Nueva materia</span>
+        </button>
+        <button class="icon-btn" type="button" id="desktopMenuBtn" aria-label="Menu" title="Menu">
+          <span class="ico-menu"></span>
+        </button>
+        <button class="icon-btn" type="button" id="themeBtn" aria-label="Cambiar tema" title="Cambiar tema">
+          <span class="ico-sun theme-ico-sun"></span>
+          <span class="ico-moon theme-ico-moon"></span>
+        </button>
+        <input type="file" id="importInput" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </header>
+
+  <!-- Menu desplegable de escritorio -->
+  <div class="desktop-menu" id="desktopMenu" hidden>
+    <button class="desktop-menu-row" type="button" id="desktopSyncBtn">
+      <span class="ico-cloud"></span><span>Sincronizar</span>
+    </button>
+    <button class="desktop-menu-row" type="button" id="desktopExportBtn">
+      <span class="ico-download"></span><span>Exportar copia</span>
+    </button>
+    <button class="desktop-menu-row" type="button" id="desktopImportBtn">
+      <span class="ico-upload"></span><span>Importar copia</span>
+    </button>
+  </div>
+
+  <!-- Isla flotante movil -->
+  <nav class="mobile-island" id="mobileIsland" aria-label="Acciones rapidas">
+    <button class="island-item island-primary" type="button" id="islandAddBtn">
+      <span class="ico-plus"></span><span>Anadir</span>
+    </button>
+    <button class="island-item" type="button" id="mobileMoreBtn">
+      <span class="ico-menu"></span><span>Mas</span>
+    </button>
+  </nav>
+
+  <main class="wrap">
+    <div class="view-switcher" id="viewSwitcher" role="tablist" aria-label="Vistas">
+      <button class="view-tab is-active" type="button" data-view="inicio" role="tab" aria-selected="true">Inicio</button>
+      <button class="view-tab" type="button" data-view="materias" role="tab" aria-selected="false">Materias</button>
+      <button class="view-tab" type="button" data-view="calendario" role="tab" aria-selected="false">Calendario</button>
+    </div>
+
+    <section class="hero" data-view="inicio">
+      <div class="hero-main">
+        <p class="eyebrow" id="eyebrow">Tu curso</p>
+        <h1 id="heroTitle">Resumen del curso</h1>
+        <p class="hero-sub" id="heroSub">Añade tu primera materia para empezar.</p>
+        <div class="hero-pills">
+          <div class="pill-stat">
+            <strong id="statSubjects">0</strong>
+            <span>materias</span>
+          </div>
+          <div class="pill-stat">
+            <strong id="statAbsences">0</strong>
+            <span>faltas</span>
+          </div>
+          <div class="pill-stat">
+            <strong id="statRisk">0</strong>
+            <span>en riesgo</span>
+          </div>
+          <div class="pill-stat">
+            <strong id="statPending">0</strong>
+            <span>pendientes</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-ring" aria-hidden="true">
+        <svg class="ring" viewBox="0 0 120 120">
+          <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+          <circle class="ring-value" id="ringAverage" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="ring-center">
+          <strong id="statAverage">—</strong>
+          <span>nota media</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="pendientesSection" data-view="inicio" hidden>
+      <div class="section-head">
+        <div>
+          <h2>Pendientes</h2>
+          <p class="section-sub" id="pendingSub">Lo más próximo primero</p>
+        </div>
+      </div>
+      <ul class="list" id="pendingList"></ul>
+    </section>
+
+    <section class="section" id="calendarioSection" data-view="calendario">
+      <div class="section-head">
+        <div>
+          <h2>Calendario</h2>
+          <p class="section-sub" id="calendarSub">Tus evaluaciones y faltas por dia</p>
+        </div>
+        <div class="calendar-nav">
+          <button class="icon-btn" type="button" id="calPrev" aria-label="Mes anterior">&#8249;</button>
+          <strong id="calTitle">-</strong>
+          <button class="icon-btn" type="button" id="calNext" aria-label="Mes siguiente">&#8250;</button>
+        </div>
+      </div>
+      <div class="calendar" id="calendarGrid"></div>
+      <div class="calendar-events" id="calendarEvents"></div>
+    </section>
+
+    <section class="section" id="materiasSection" data-view="materias">
+      <div class="section-head">
+        <div>
+          <h2>Materias</h2>
+          <p class="section-sub" id="sectionSub">Sin materias todavía</p>
+        </div>
+        <div class="filters" id="subjectFilters" role="tablist" aria-label="Filtrar materias">
+          <button class="filter is-active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
+          <button class="filter" type="button" data-filter="examenes" role="tab" aria-selected="false">Exámenes</button>
+          <button class="filter" type="button" data-filter="trabajos" role="tab" aria-selected="false">Trabajos</button>
+          <button class="filter" type="button" data-filter="mixto" role="tab" aria-selected="false">Mixtas</button>
+        </div>
+      </div>
+
+      <div class="grid" id="subjectsGrid"></div>
+
+      <div class="empty" id="emptyState">
+        <div class="empty-art">
+          <span class="ico-layers"></span>
+        </div>
+        <h3>Empieza tu curso</h3>
+        <p>Crea una materia, elige si puntúa con exámenes, trabajos o ambos, y la app calcula la nota final por ti.</p>
+        <button class="btn btn-primary" type="button" id="emptyAddBtn">
+          <span class="ico-plus"></span> Crear materia
+        </button>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Datos guardados en este dispositivo · <button class="link-btn" type="button" id="footExport">hacer copia de seguridad</button></p>
+    </footer>
+  </main>
+
+  <!-- ================= SYNC LOGIN ================= -->
+  <div class="modal" id="syncModal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
+    <div class="sheet">
+      <header class="sheet-head">
+        <h2 id="syncModalTitle">Sincronizar con Appwrite</h2>
+        <button class="icon-btn" type="button" data-close="syncModal" aria-label="Cerrar"><span class="ico-x"></span></button>
+      </header>
+      <div class="sheet-body">
+        <p class="hint">Inicia sesión con tu email y sincroniza tus materias entre todos tus dispositivos. Tus datos también se quedan guardados en este dispositivo.</p>
+        <div id="syncLoggedOut">
+          <label class="field">
+            <span>Email</span>
+            <input type="email" id="syncEmail" placeholder="tu@email.com" autocomplete="email">
+          </label>
+          <div class="sheet-actions">
+            <button class="btn btn-quiet" type="button" data-close="syncModal">Cancelar</button>
+            <button class="btn btn-primary" type="button" id="syncSendMagic">Enviar enlace mágico</button>
+          </div>
+        </div>
+        <div id="syncLoggedIn" style="display:none">
+          <p>Conectado como: <strong id="syncUserEmail"></strong></p>
+          <p class="hint" id="syncStatus">Sincronización automática activada.</p>
+          <div class="sheet-actions">
+            <button class="btn btn-quiet" type="button" id="syncLogout">Cerrar sesión</button>
+            <button class="btn btn-primary" type="button" id="syncNow">Sincronizar ahora</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MATERIA ================= -->
+  <div class="modal" id="subjectModal" role="dialog" aria-modal="true" aria-labelledby="subjectModalTitle">
+    <div class="sheet">
+      <header class="sheet-head">
+        <h2 id="subjectModalTitle">Nueva materia</h2>
+        <button class="icon-btn" type="button" data-close="subjectModal" aria-label="Cerrar"><span class="ico-x"></span></button>
+      </header>
+      <form class="sheet-body" id="subjectForm" novalidate>
+        <input type="hidden" id="subjectId">
+
+        <label class="field">
+          <span>Nombre de la materia</span>
+          <input type="text" id="subjectName" placeholder="Ej. Matemáticas" maxlength="60" autocomplete="off" required>
+        </label>
+
+        <fieldset class="type-grid">
+          <legend>Cómo se evalúa</legend>
+          <label class="type-card">
+            <input type="radio" name="subjectType" value="examenes" checked>
+            <span class="type-body">
+              <span class="type-ico"><span class="ico-exam"></span></span>
+              <strong>Exámenes</strong>
+              <small>Solo pruebas</small>
+            </span>
+          </label>
+          <label class="type-card">
+            <input type="radio" name="subjectType" value="trabajos">
+            <span class="type-body">
+              <span class="type-ico"><span class="ico-work"></span></span>
+              <strong>Trabajos</strong>
+              <small>Solo entregas</small>
+            </span>
+          </label>
+          <label class="type-card">
+            <input type="radio" name="subjectType" value="mixto">
+            <span class="type-body">
+              <span class="type-ico"><span class="ico-mix"></span></span>
+              <strong>Ambos</strong>
+              <small>Exámenes y trabajos</small>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="field">
+          <span>Color</span>
+          <div class="swatches" id="subjectSwatches">
+            <button class="swatch" type="button" data-color="#6366f1" style="--sw:#6366f1" aria-label="Índigo"></button>
+            <button class="swatch" type="button" data-color="#22d3ee" style="--sw:#22d3ee" aria-label="Cian"></button>
+            <button class="swatch" type="button" data-color="#34d399" style="--sw:#34d399" aria-label="Verde"></button>
+            <button class="swatch" type="button" data-color="#fbbf24" style="--sw:#fbbf24" aria-label="Ámbar"></button>
+            <button class="swatch" type="button" data-color="#fb7185" style="--sw:#fb7185" aria-label="Rosa"></button>
+            <button class="swatch" type="button" data-color="#a855f7" style="--sw:#a855f7" aria-label="Violeta"></button>
+            <label class="swatch swatch-custom" title="Color personalizado">
+              <span class="ico-pipette"></span>
+              <input type="color" id="subjectColor" value="#6366f1">
+            </label>
+          </div>
+        </div>
+
+        <div class="sheet-actions">
+          <button class="btn btn-quiet" type="button" data-close="subjectModal">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar materia</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= DETALLE ================= -->
+  <div class="modal modal-wide" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="sheet sheet-wide">
+      <header class="sheet-head">
+        <div class="detail-id">
+          <span class="dot-color" id="detailColor"></span>
+          <div>
+            <h2 id="detailTitle">Materia</h2>
+            <p id="detailSubtitle">—</p>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn btn-quiet btn-sm" type="button" id="editSubjectBtn">
+            <span class="ico-pen"></span><span class="btn-label">Editar</span>
+          </button>
+          <button class="icon-btn" type="button" data-close="detailModal" aria-label="Cerrar"><span class="ico-x"></span></button>
+        </div>
+      </header>
+
+      <div class="detail-layout">
+        <aside class="detail-rail">
+          <div class="rail-ring">
+            <svg class="ring ring-sm" viewBox="0 0 120 120">
+              <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+              <circle class="ring-value" id="railRing" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="ring-center">
+              <strong id="resFinal">—</strong>
+              <span>final</span>
+            </div>
+          </div>
+          <p class="rail-note" id="resFinalNote">Sin datos</p>
+
+          <div class="rail-stats">
+            <div class="rail-stat">
+              <span>Exámenes</span>
+              <strong id="railExams">—</strong>
+            </div>
+            <div class="rail-stat">
+              <span>Trabajos</span>
+              <strong id="railWorks">—</strong>
+            </div>
+            <div class="rail-stat">
+              <span>Faltas</span>
+              <strong id="railAbsences">0</strong>
+            </div>
+            <div class="rail-stat">
+              <span>Asistencia</span>
+              <strong id="railAttendance">100%</strong>
+            </div>
+          </div>
+
+          <button class="btn btn-quiet btn-sm rail-backup" type="button" id="railCloseBtn">Volver al panel</button>
+        </aside>
+
+        <div class="detail-main">
+          <nav class="tabs" role="tablist">
+            <button class="tab is-active" type="button" data-tab="resumen" role="tab" aria-selected="true">Resumen</button>
+            <button class="tab" type="button" data-tab="evaluaciones" role="tab" aria-selected="false">Evaluaciones <em id="tabCountItems">0</em></button>
+            <button class="tab" type="button" data-tab="faltas" role="tab" aria-selected="false">Faltas <em id="tabCountAbsences">0</em></button>
+            <button class="tab" type="button" data-tab="graficos" role="tab" aria-selected="false">Graficos</button>
+            <button class="tab" type="button" data-tab="ajustes" role="tab" aria-selected="false">Ajustes</button>
+          </nav>
+
+          <div class="detail-body">
+            <!-- RESUMEN -->
+            <section class="pane is-active" data-pane="resumen">
+              <div class="panel">
+                <div class="panel-head">
+                  <h3>Nota final</h3>
+                  <span class="chip" id="resTypeChip">—</span>
+                </div>
+                <div class="breakdown">
+                  <div class="breakdown-row">
+                    <div class="breakdown-label">
+                      <span>Exámenes</span>
+                      <span id="resWeightExams">0%</span>
+                    </div>
+                    <div class="bar"><i class="bar-fill fill-exams" id="meterExams"></i></div>
+                    <div class="breakdown-value" id="resExams">—</div>
+                  </div>
+                  <div class="breakdown-row">
+                    <div class="breakdown-label">
+                      <span>Trabajos</span>
+                      <span id="resWeightWorks">0%</span>
+                    </div>
+                    <div class="bar"><i class="bar-fill fill-works" id="meterWorks"></i></div>
+                    <div class="breakdown-value" id="resWorks">—</div>
+                  </div>
+                </div>
+                <p class="hint" id="resFormula"></p>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h3>Asistencia</h3>
+                  <span class="chip" id="resAttendanceChip">100%</span>
+                </div>
+                <div class="absence-meter">
+                  <div class="absence-line">
+                    <div class="absence-top">
+                      <span><i class="dot dot-ok"></i> Justificadas</span>
+                      <span id="resJustifiedText">0 / 0</span>
+                    </div>
+                    <div class="bar"><i class="bar-fill fill-ok" id="resJustifiedBar"></i></div>
+                  </div>
+                  <div class="absence-line">
+                    <div class="absence-top">
+                      <span><i class="dot dot-warn"></i> Injustificadas</span>
+                      <span id="resUnjustifiedText">0 / 0</span>
+                    </div>
+                    <div class="bar"><i class="bar-fill fill-warn" id="resUnjustifiedBar"></i></div>
+                  </div>
+                </div>
+                <p class="hint" id="resAttendanceHint"></p>
+              </div>
+            </section>
+
+            <!-- EVALUACIONES -->
+            <section class="pane" data-pane="evaluaciones">
+              <div class="pane-head">
+                <div>
+                  <h3>Evaluaciones</h3>
+                  <p class="hint" id="evalsHint">Puedes dejar el peso vacío: se reparte automáticamente lo que falte. Las pendientes no cuentan hasta entregarlas.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" type="button" id="addItemBtn">
+                  <span class="ico-plus"></span> Añadir
+                </button>
+              </div>
+
+              <div class="filters filters-inline" id="itemFilters" role="tablist" aria-label="Filtrar evaluaciones">
+                <button class="filter is-active" type="button" data-item-filter="all" role="tab" aria-selected="true">Todo</button>
+                <button class="filter" type="button" data-item-filter="exam" role="tab" aria-selected="false">Exámenes</button>
+                <button class="filter" type="button" data-item-filter="work" role="tab" aria-selected="false">Trabajos</button>
+              </div>
+
+              <div class="weight-total" id="examsTotalLine"></div>
+              <div class="weight-total" id="worksTotalLine"></div>
+
+              <ul class="list" id="itemsList"></ul>
+              <div class="empty-mini" id="itemsEmpty">
+                <span class="ico-note"></span>
+                <p>Sin evaluaciones todavía</p>
+              </div>
+            </section>
+
+            <!-- GRAFICOS -->
+            <section class="pane" data-pane="graficos">
+              <div class="pane-head">
+                <div>
+                  <h3>Graficos</h3>
+                  <p class="hint">Notas por evaluacion.</p>
+                </div>
+              </div>
+              <canvas id="gradeChart" class="grade-chart" width="640" height="260"></canvas>
+              <div class="chart-summary" id="chartSummary"></div>
+            </section>
+
+            <!-- FALTAS -->
+            <section class="pane" data-pane="faltas">
+              <div class="pane-head">
+                <div>
+                  <h3>Faltas</h3>
+                  <p class="hint">Clasifica cada falta como justificada o injustificada.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" type="button" id="addAbsenceBtn">
+                  <span class="ico-plus"></span> Añadir falta
+                </button>
+              </div>
+
+              <div class="absence-cards">
+                <div class="absence-card">
+                  <span class="absence-card-label">Justificadas</span>
+                  <strong id="absJustified">0</strong>
+                  <span class="absence-card-note" id="absJustifiedLimit">límite 0</span>
+                </div>
+                <div class="absence-card">
+                  <span class="absence-card-label">Injustificadas</span>
+                  <strong id="absUnjustified">0</strong>
+                  <span class="absence-card-note" id="absUnjustifiedLimit">límite 0</span>
+                </div>
+                <div class="absence-card">
+                  <span class="absence-card-label">Total</span>
+                  <strong id="absTotal">0</strong>
+                  <span class="absence-card-note" id="absTotalNote">de 0 clases</span>
+                </div>
+              </div>
+
+              <ul class="list" id="absencesList"></ul>
+              <div class="empty-mini" id="absencesEmpty">
+                <span class="ico-check"></span>
+                <p>Sin faltas registradas</p>
+              </div>
+            </section>
+
+            <!-- AJUSTES -->
+            <section class="pane" data-pane="ajustes">
+              <div class="panel">
+                <div class="panel-head"><h3>Evaluación</h3></div>
+                <fieldset class="type-grid type-grid-sm">
+                  <legend class="sr-only">Tipo de evaluación</legend>
+                  <label class="type-card">
+                    <input type="radio" name="setType" value="examenes">
+                    <span class="type-body">
+                      <span class="type-ico"><span class="ico-exam"></span></span>
+                      <strong>Exámenes</strong>
+                    </span>
+                  </label>
+                  <label class="type-card">
+                    <input type="radio" name="setType" value="trabajos">
+                    <span class="type-body">
+                      <span class="type-ico"><span class="ico-work"></span></span>
+                      <strong>Trabajos</strong>
+                    </span>
+                  </label>
+                  <label class="type-card">
+                    <input type="radio" name="setType" value="mixto">
+                    <span class="type-body">
+                      <span class="type-ico"><span class="ico-mix"></span></span>
+                      <strong>Ambos</strong>
+                    </span>
+                  </label>
+                </fieldset>
+
+                <div class="field-row" id="weightsRow">
+                  <label class="field">
+                    <span>Peso exámenes (%)</span>
+                    <input type="number" id="setExamWeight" min="0" max="100" step="1">
+                  </label>
+                  <label class="field">
+                    <span>Peso trabajos (%)</span>
+                    <input type="number" id="setWorkWeight" min="0" max="100" step="1">
+                  </label>
+                </div>
+                <p class="hint" id="weightsHint"></p>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head"><h3>Faltas</h3></div>
+                <label class="field">
+                  <span>Total de clases del curso</span>
+                  <input type="number" id="setTotalClasses" min="1" max="400" step="1">
+                </label>
+                <div class="field">
+                  <span>Horas por semana</span>
+                  <input type="number" id="setHoursPerWeek" min="0" max="40" step="0.5">
+                  <p class="hint" id="hoursHint">Se calcula el total aproximado según las semanas.</p>
+                </div>
+                <label class="field">
+                  <span>Número de semanas</span>
+                  <input type="number" id="setWeeks" min="1" max="40" step="1">
+                </label>
+                <div class="field-row">
+                  <label class="field">
+                    <span>Límite justificadas (%)</span>
+                    <input type="number" id="setJustifiedPct" min="0" max="100" step="1">
+                  </label>
+                  <label class="field">
+                    <span>Límite injustificadas (%)</span>
+                    <input type="number" id="setUnjustifiedPct" min="0" max="100" step="1">
+                  </label>
+                </div>
+                <p class="hint" id="limitsHint"></p>
+              </div>
+
+              <div class="sheet-actions">
+                <button class="btn btn-danger-ghost" type="button" id="deleteSubjectBtn">Eliminar materia</button>
+                <button class="btn btn-quiet" type="button" id="resetSettingsBtn">Restablecer</button>
+                <button class="btn btn-primary" type="button" id="saveSettingsBtn">Guardar ajustes</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EVALUACIÓN ================= -->
+  <div class="modal" id="itemModal" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle">
+    <div class="sheet">
+      <header class="sheet-head">
+        <h2 id="itemModalTitle">Añadir evaluación</h2>
+        <button class="icon-btn" type="button" data-close="itemModal" aria-label="Cerrar"><span class="ico-x"></span></button>
+      </header>
+      <form class="sheet-body" id="itemForm" novalidate>
+        <input type="hidden" id="itemId">
+
+        <fieldset class="segmented" id="itemKindField">
+          <legend>Tipo</legend>
+          <label><input type="radio" name="itemKind" value="exam" checked><span><span class="ico-exam"></span> Examen</span></label>
+          <label><input type="radio" name="itemKind" value="work"><span><span class="ico-work"></span> Trabajo</span></label>
+        </fieldset>
+        <p class="hint" id="itemKindLock"></p>
+
+        <label class="field">
+          <span id="itemNameLabel">Nombre del examen</span>
+          <input type="text" id="itemName" placeholder="Ej. Examen tema 1" maxlength="80" autocomplete="off" required>
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Nota (0 – 10) <em class="opt">(opcional)</em></span>
+            <input type="number" id="itemGrade" min="0" max="10" step="0.01" placeholder="8,5" inputmode="decimal">
+          </label>
+          <label class="field">
+            <span>Peso (%) <em class="opt">(auto)</em></span>
+            <input type="number" id="itemWeight" min="0" max="100" step="0.01" placeholder="auto" inputmode="decimal">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Fecha <em class="opt">(opcional)</em></span>
+          <input type="date" id="itemDate">
+        </label>
+
+        <label class="switch-field" for="itemDone">
+          <span>
+            <strong>Finalizado</strong>
+            <em class="opt">Desmárcalo si todavía está pendiente</em>
+          </span>
+          <input type="checkbox" id="itemDone" checked>
+        </label>
+
+        <p class="hint" id="itemHint"></p>
+
+        <div class="sheet-actions">
+          <button class="btn btn-quiet" type="button" data-close="itemModal">Cancelar</button>
+          <button class="btn btn-primary" type="submit" id="itemSubmit">Añadir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= FALTA ================= -->
+  <div class="modal" id="absenceModal" role="dialog" aria-modal="true" aria-labelledby="absenceModalTitle">
+    <div class="sheet">
+      <header class="sheet-head">
+        <h2 id="absenceModalTitle">Añadir falta</h2>
+        <button class="icon-btn" type="button" data-close="absenceModal" aria-label="Cerrar"><span class="ico-x"></span></button>
+      </header>
+      <form class="sheet-body" id="absenceForm" novalidate>
+        <input type="hidden" id="absenceId">
+        <label class="field">
+          <span>Fecha</span>
+          <input type="date" id="absenceDate" required>
+        </label>
+        <label class="field">
+          <span>Motivo <em class="opt">(opcional)</em></span>
+          <input type="text" id="absenceReason" placeholder="Ej. Cita médica" maxlength="80" autocomplete="off">
+        </label>
+        <fieldset class="segmented">
+          <legend>Tipo de falta</legend>
+          <label><input type="radio" name="absenceKind" value="justificada" checked><span>Justificada</span></label>
+          <label><input type="radio" name="absenceKind" value="injustificada"><span>Injustificada</span></label>
+        </fieldset>
+        <div class="sheet-actions">
+          <button class="btn btn-quiet" type="button" data-close="absenceModal">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@29.2.0/dist/iife/sdk.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
