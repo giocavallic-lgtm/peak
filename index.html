@@ -84,6 +84,16 @@
 
   <!-- Menu desplegable de escritorio -->
   <div class="desktop-menu" id="desktopMenu" hidden>
+    <button class="desktop-menu-row" type="button" data-view="inicio">
+      <span class="ico-home"></span><span>Inicio</span>
+    </button>
+    <button class="desktop-menu-row" type="button" data-view="materias">
+      <span class="ico-layers"></span><span>Materias</span>
+    </button>
+    <button class="desktop-menu-row" type="button" data-view="calendario">
+      <span class="ico-layers"></span><span>Calendario</span>
+    </button>
+    <div class="desktop-menu-sep"></div>
     <button class="desktop-menu-row" type="button" id="desktopSyncBtn">
       <span class="ico-cloud"></span><span>Sincronizar</span>
     </button>
@@ -157,6 +167,16 @@
         </div>
       </div>
       <ul class="list" id="pendingList"></ul>
+    </section>
+
+    <section class="section" id="resumenMateriasSection" data-view="inicio">
+      <div class="section-head">
+        <div>
+          <h2>Materias</h2>
+          <p class="section-sub" id="resumenMateriasSub">Resumen rapido de tu curso</p>
+        </div>
+      </div>
+      <div class="subjects-summary" id="subjectsSummary"></div>
     </section>
 
     <section class="section" id="calendarioSection" data-view="calendario">

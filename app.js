@@ -519,6 +519,10 @@ class App {
         }
       });
       const closeDesktopMenu = () => { desktopMenu.hidden = true; };
+      // navegacion entre vistas
+      desktopMenu.querySelectorAll('[data-view]').forEach((btn) => {
+        btn.addEventListener('click', () => { closeDesktopMenu(); this.switchView(btn.dataset.view); });
+      });
       const ds = document.getElementById('desktopSyncBtn');
       if (ds) ds.addEventListener('click', () => { closeDesktopMenu(); this.openSyncModal(); });
       const de = document.getElementById('desktopExportBtn');
@@ -731,7 +735,33 @@ class App {
     this.renderSubjects();
     this.renderPending();
     this.renderCalendar();
+    this.renderSubjectsSummary();
     this.switchView(this.currentView);
+  }
+
+  renderSubjectsSummary() {
+    const el = document.getElementById('subjectsSummary');
+    if (!el) return;
+    const subjects = this.store.all();
+    if (!subjects.length) {
+      el.innerHTML = '<p class="hint">Sin materias todavia. Crea la primera en la pestaña Materias.</p>';
+      return;
+    }
+    el.innerHTML = subjects.map((s) => {
+      const grade = finalGrade(s);
+      const pending = [...s.exams, ...s.works].filter(isPending).length;
+      return '<button class="summary-card" type="button" data-subject="' + s.id + '" style="--accent:' + s.color + '">'
+        + '<span class="summary-name">' + escapeHtml(s.name) + '</span>'
+        + '<span class="summary-grade">' + (grade === null ? '—' : grade.toFixed(2)) + '</span>'
+        + (pending ? '<span class="badge-pill warn">' + pending + ' pend.</span>' : '')
+        + '</button>';
+    }).join('');
+    el.querySelectorAll('[data-subject]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.openDetail(btn.dataset.subject);
+        this.switchTab('resumen');
+      });
+    });
   }
 
   renderSubjects() {

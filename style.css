@@ -1304,6 +1304,7 @@ fieldset > legend,
   gap: 0.15rem;
 }
 .desktop-menu[hidden] { display: none; }
+.desktop-menu-sep { height: 1px; background: var(--line); margin: 0.25rem 0.4rem; }
 .desktop-menu-row {
   display: flex; align-items: center; gap: 0.7rem;
   padding: 0.6rem 0.75rem; border-radius: var(--r-sm);
@@ -1380,3 +1381,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .view-tab.is-active { background: var(--brand); color: #fff; }
 .view-section { display: none; }
 .view-section.is-active { display: flex; flex-direction: column; gap: clamp(1.6rem, 4vw, 2.4rem); }
+
+
+/* ---------- Resumen de materias en Inicio ---------- */
+.subjects-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.6rem; }
+.summary-card {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  padding: 0.8rem 0.9rem; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-solid) 55%, transparent);
+  cursor: pointer; text-align: left; color: var(--txt);
+  transition: border-color 0.15s, transform 0.15s;
+  border-left: 3px solid var(--accent, var(--brand));
+}
+.summary-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.summary-name { font-weight: 600; font-size: 0.95rem; }
+.summary-grade { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--txt-2); }
