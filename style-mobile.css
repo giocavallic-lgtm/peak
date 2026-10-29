@@ -266,9 +266,13 @@
 .island-item .ico-plus, .island-item .ico-menu { width: 1.05rem; height: 1.05rem; background: currentColor; }
 .island-primary { color: var(--txt); background: radial-gradient(circle, color-mix(in srgb, var(--brand) 22%, transparent), transparent); }
 .island-primary .ico-plus { background: var(--brand-2); }
-.desktop-menu { display: none !important; }
 
 @media (max-width: 700px) {
   .desktop-menu-btn { display: none; }
   .mobile-island { display: grid; }
+}
+
+@media (max-width: 700px) {
+  .desktop-menu { display: none !important; }
+  .desktop-menu-btn { display: none; }
 }
