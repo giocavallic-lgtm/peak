@@ -1,49 +1,46 @@
 /* ============================================================
    Peak — lógica
-   Datos en localStorage + sync con Appwrite
+   Datos en localStorage + sync con Supabase
    ============================================================ */
 
 const STORAGE_KEY = 'notas-faltas-v2';
 const LEGACY_KEY = 'gradeManagerData';
 const THEME_KEY = 'notas-faltas-theme';
 
-// Appwrite config
-const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
-const APPWRITE_PROJECT_ID = '6ae100ae003dc1ddccdb';
+// Supabase config
+const SUPABASE_URL = 'https://abksonqomnjnpleewfyw.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_X-dEF9EsFEiDXEm7e9R83Q_ILhjJXu0';
 const MODIFIED_KEY = 'peak-modified-at';
 
-// Appwrite instances
-let appwriteClient = null;
-let appwriteAccount = null;
-let appwriteCurrentUser = null;
-let appwriteSyncEnabled = false;
+// Supabase instance
+let supabaseClient = null;
+let supabaseUser = null;
+let supabaseSyncEnabled = false;
 let syncTimer = null;
 let syncInFlight = false;
 
-function initAppwrite() {
+function initSupabase() {
   try {
-    if (typeof Appwrite === 'undefined') {
-      console.warn('SDK de Appwrite no disponible');
+    if (typeof supabase === 'undefined' || !supabase.createClient) {
+      console.warn('SDK de Supabase no disponible');
       return false;
     }
-    appwriteClient = new Appwrite.Client()
-      .setEndpoint(APPWRITE_ENDPOINT)
-      .setProject(APPWRITE_PROJECT_ID);
-    appwriteAccount = new Appwrite.Account(appwriteClient);
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     return true;
   } catch (e) {
-    console.warn('Appwrite init failed', e);
+    console.warn('Supabase init failed', e);
     return false;
   }
 }
 
-async function getAppwriteUser() {
-  if (!appwriteAccount) return null;
+async function getSupabaseUser() {
+  if (!supabaseClient) return null;
   try {
-    appwriteCurrentUser = await appwriteAccount.get();
-    return appwriteCurrentUser;
+    const { data } = await supabaseClient.auth.getUser();
+    supabaseUser = (data && data.user) || null;
+    return supabaseUser;
   } catch (e) {
-    appwriteCurrentUser = null;
+    supabaseUser = null;
     return null;
   }
 }
@@ -1895,20 +1892,13 @@ class App {
     reader.readAsText(file);
   }
 
-  /* ----- Sincronización (Appwrite) ----- */
+  /* ----- Sincronización (Supabase) ----- */
   bindSync() {
-    ['syncBtn', 'mobileSyncBtn'].forEach((id) => {
-      const btn = document.getElementById(id);
-      if (!btn) return;
-      btn.addEventListener('click', () => {
-        const sheet = document.getElementById('mobileMoreSheet');
-        if (sheet) sheet.classList.remove('is-open');
-        this.openSyncModal();
-      });
-    });
+    const signIn = document.getElementById('syncSignIn');
+    if (signIn) signIn.addEventListener('click', () => this.signInSync());
 
-    const send = document.getElementById('syncSendMagic');
-    if (send) send.addEventListener('click', () => this.sendMagicLink());
+    const signUp = document.getElementById('syncSignUp');
+    if (signUp) signUp.addEventListener('click', () => this.signUpSync());
 
     const logout = document.getElementById('syncLogout');
     if (logout) logout.addEventListener('click', () => this.logoutSync());
@@ -1917,20 +1907,21 @@ class App {
     if (now) now.addEventListener('click', () => this.syncNow(true));
 
     const email = document.getElementById('syncEmail');
-    if (email) {
-      email.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          this.sendMagicLink();
-        }
-      });
-    }
+    const password = document.getElementById('syncPassword');
+    const handleEnter = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.signInSync();
+      }
+    };
+    if (email) email.addEventListener('keydown', handleEnter);
+    if (password) password.addEventListener('keydown', handleEnter);
 
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && appwriteSyncEnabled) this.syncNow(false);
+      if (!document.hidden && supabaseSyncEnabled) this.syncNow(false);
     });
     window.addEventListener('online', () => {
-      if (appwriteSyncEnabled) this.syncNow(false);
+      if (supabaseSyncEnabled) this.syncNow(false);
     });
   }
 
@@ -1942,12 +1933,12 @@ class App {
   }
 
   async refreshSyncUi() {
-    const user = await getAppwriteUser();
+    const user = await getSupabaseUser();
     const loggedOut = document.getElementById('syncLoggedOut');
     const loggedIn = document.getElementById('syncLoggedIn');
     const emailEl = document.getElementById('syncUserEmail');
 
-    appwriteSyncEnabled = Boolean(user);
+    supabaseSyncEnabled = Boolean(user);
 
     if (user) {
       if (loggedOut) loggedOut.style.display = 'none';
@@ -1966,57 +1957,119 @@ class App {
     if (lbl) lbl.textContent = text;
   }
 
-  async sendMagicLink() {
-    if (!appwriteAccount) {
+  async signInSync() {
+    if (!supabaseClient) {
       toast('Sincronización no disponible ahora mismo', true);
       return;
     }
-    const input = document.getElementById('syncEmail');
-    const email = input ? input.value.trim() : '';
+    const emailInput = document.getElementById('syncEmail');
+    const passInput = document.getElementById('syncPassword');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const password = passInput ? passInput.value : '';
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast('Escribe un email válido', true);
-      if (input) input.focus();
+      if (emailInput) emailInput.focus();
+      return;
+    }
+    if (!password) {
+      toast('Escribe tu contraseña', true);
+      if (passInput) passInput.focus();
       return;
     }
 
-    const btn = document.getElementById('syncSendMagic');
-    if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+    const btn = document.getElementById('syncSignIn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Entrando…'; }
 
     try {
-      const url = window.location.origin + window.location.pathname;
-      await appwriteAccount.createMagicURLToken({ userId: 'unique()', email, url });
-      toast('Enlace enviado. Revisa tu correo.');
-      if (input) input.value = '';
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      supabaseUser = (data && data.user) || null;
+      supabaseSyncEnabled = Boolean(supabaseUser);
+      if (emailInput) emailInput.value = '';
+      if (passInput) passInput.value = '';
+      this.closeModal('syncModal');
+      this.setSyncLabel('Sincronizado');
+      toast('Sesión iniciada');
+      await this.syncNow(false);
     } catch (err) {
       console.error(err);
-      toast(err && err.message ? 'No se pudo enviar: ' + err.message : 'No se pudo enviar el enlace', true);
+      toast(err && err.message ? 'Error: ' + err.message : 'No se pudo iniciar sesión', true);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Enviar enlace mágico'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Iniciar sesión'; }
+    }
+  }
+
+  async signUpSync() {
+    if (!supabaseClient) {
+      toast('Sincronización no disponible ahora mismo', true);
+      return;
+    }
+    const emailInput = document.getElementById('syncEmail');
+    const passInput = document.getElementById('syncPassword');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const password = passInput ? passInput.value : '';
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast('Escribe un email válido', true);
+      if (emailInput) emailInput.focus();
+      return;
+    }
+    if (!password || password.length < 6) {
+      toast('La contraseña debe tener al menos 6 caracteres', true);
+      if (passInput) passInput.focus();
+      return;
+    }
+
+    const btn = document.getElementById('syncSignUp');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) throw error;
+      const user = (data && data.user) || null;
+      if (user && !data.session) {
+        toast('Cuenta creada. Revisa tu correo para confirmar.');
+      } else {
+        supabaseUser = user;
+        supabaseSyncEnabled = Boolean(user);
+        if (emailInput) emailInput.value = '';
+        if (passInput) passInput.value = '';
+        this.closeModal('syncModal');
+        this.setSyncLabel('Sincronizado');
+        toast('Cuenta creada. Sincronizando…');
+        await this.syncNow(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast(err && err.message ? 'Error: ' + err.message : 'No se pudo crear la cuenta', true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Crear cuenta'; }
     }
   }
 
   async logoutSync() {
-    if (!appwriteAccount) return;
+    if (!supabaseClient) return;
     try {
-      await appwriteAccount.deleteSession({ sessionId: 'current' });
+      await supabaseClient.auth.signOut();
     } catch (err) {
       console.warn('No se pudo cerrar sesión', err);
     }
-    appwriteCurrentUser = null;
-    appwriteSyncEnabled = false;
+    supabaseUser = null;
+    supabaseSyncEnabled = false;
     this.setSyncLabel('Sincronizar');
     this.closeModal('syncModal');
     toast('Sesión cerrada');
   }
 
   async syncNow(manual = false) {
-    if (!appwriteAccount) {
+    if (!supabaseClient) {
       if (manual) toast('Sincronización no disponible ahora mismo', true);
       return;
     }
     if (syncInFlight) return;
 
-    const user = appwriteCurrentUser || await getAppwriteUser();
+    const user = supabaseUser || await getSupabaseUser();
     if (!user) {
       if (manual) this.openSyncModal();
       return;
@@ -2026,15 +2079,19 @@ class App {
     if (manual) this.setSyncLabel('Sincronizando…');
 
     try {
-      let remote = null;
-      const raw = user.prefs && user.prefs.peak;
-      if (raw) {
-        try { remote = JSON.parse(raw); } catch (err) { remote = null; }
-      }
-      const localModified = parseInt(localStorage.getItem(MODIFIED_KEY) || '0', 10) || 0;
-      const remoteTime = (remote && Number(remote.savedAt)) || 0;
+      const { data: rows, error: fetchErr } = await supabaseClient
+        .from('user_data')
+        .select('data, updated_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (!remote) {
+      if (fetchErr) throw fetchErr;
+
+      const localModified = parseInt(localStorage.getItem(MODIFIED_KEY) || '0', 10) || 0;
+      const remoteTime = (rows && rows.updated_at) ? new Date(rows.updated_at).getTime() : 0;
+      const remoteData = rows && rows.data ? rows.data : null;
+
+      if (!remoteData) {
         if (this.store.all().length) {
           await this.pushToCloud(user);
           if (manual) toast('Datos subidos a la nube');
@@ -2045,7 +2102,7 @@ class App {
         await this.pushToCloud(user);
         if (manual) toast('Datos subidos a la nube');
       } else {
-        const changed = this.applyCloudPayload(remote);
+        const changed = this.applyCloudPayload(remoteData);
         if (manual) toast(changed ? 'Datos actualizados desde la nube' : 'Todo está al día');
       }
 
@@ -2067,7 +2124,7 @@ class App {
   }
 
   schedulePush() {
-    if (!appwriteSyncEnabled) return;
+    if (!supabaseSyncEnabled) return;
     clearTimeout(syncTimer);
     syncTimer = setTimeout(() => this.syncNow(false), 2000);
   }
@@ -2075,16 +2132,16 @@ class App {
   async pushToCloud(user) {
     const savedAt = Date.now();
     const payload = { v: 1, savedAt, subjects: this.store.all() };
-    const json = JSON.stringify(payload);
 
-    try {
-      await appwriteAccount.updatePrefs({ prefs: { peak: json } });
-      user.prefs = { peak: json };
-    } catch (err) {
-      if (String((err && err.message) || '').toLowerCase().includes('size')) {
+    const { error } = await supabaseClient
+      .from('user_data')
+      .upsert({ user_id: user.id, data: payload, updated_at: new Date(savedAt).toISOString() }, { onConflict: 'user_id' });
+
+    if (error) {
+      if (String((error && error.message) || '').toLowerCase().includes('size')) {
         toast('Hay demasiados datos para la nube. Descarga una copia de seguridad.', true);
       }
-      throw err;
+      throw error;
     }
 
     localStorage.setItem(MODIFIED_KEY, String(savedAt));
@@ -2112,41 +2169,16 @@ class App {
   }
 
   async checkSyncOnLoad() {
-    if (!appwriteAccount) return;
-    const user = await getAppwriteUser();
+    if (!supabaseClient) return;
+    const user = await getSupabaseUser();
     if (!user) return;
-    appwriteSyncEnabled = true;
+    supabaseSyncEnabled = true;
     this.setSyncLabel('Sincronizado');
     this.syncNow(false);
   }
 }
 
-/* ---------- Enlace mágico ---------- */
-async function completeMagicLink() {
-  if (!appwriteAccount) return;
-
-  const params = new URLSearchParams(window.location.search);
-  const userId = params.get('userId');
-  const secret = params.get('secret');
-  if (!userId || !secret) return;
-
-  try {
-    await appwriteAccount.createSession({ userId, secret });
-    toast('Sesión iniciada. Sincronizando…');
-  } catch (err) {
-    console.warn('Enlace mágico no válido', err);
-    toast('El enlace ha caducado. Pide uno nuevo.', true);
-  } finally {
-    params.delete('userId');
-    params.delete('secret');
-    const qs = params.toString();
-    const clean = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
-    try { window.history.replaceState({}, '', clean); } catch (err) { /* ignora */ }
-  }
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
-  initAppwrite();
-  await completeMagicLink();
+  initSupabase();
   if (!window.app) window.app = new App();
 });

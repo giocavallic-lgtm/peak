@@ -232,19 +232,24 @@
   <div class="modal" id="syncModal" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <div class="sheet">
       <header class="sheet-head">
-        <h2 id="syncModalTitle">Sincronizar con Appwrite</h2>
+        <h2 id="syncModalTitle">Sincronizar con Supabase</h2>
         <button class="icon-btn" type="button" data-close="syncModal" aria-label="Cerrar"><span class="ico-x"></span></button>
       </header>
       <div class="sheet-body">
-        <p class="hint">Inicia sesión con tu email y sincroniza tus materias entre todos tus dispositivos. Tus datos también se quedan guardados en este dispositivo.</p>
+        <p class="hint">Inicia sesión con tu email y contraseña para sincronizar tus materias entre todos tus dispositivos. Tus datos también se quedan guardados en este dispositivo.</p>
         <div id="syncLoggedOut">
           <label class="field">
             <span>Email</span>
             <input type="email" id="syncEmail" placeholder="tu@email.com" autocomplete="email">
           </label>
+          <label class="field">
+            <span>Contraseña</span>
+            <input type="password" id="syncPassword" placeholder="••••••" autocomplete="current-password">
+          </label>
           <div class="sheet-actions">
             <button class="btn btn-quiet" type="button" data-close="syncModal">Cancelar</button>
-            <button class="btn btn-primary" type="button" id="syncSendMagic">Enviar enlace mágico</button>
+            <button class="btn btn-quiet" type="button" id="syncSignUp">Crear cuenta</button>
+            <button class="btn btn-primary" type="button" id="syncSignIn">Iniciar sesión</button>
           </div>
         </div>
         <div id="syncLoggedIn" style="display:none">
@@ -691,7 +696,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/appwrite@29.2.0/dist/iife/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
